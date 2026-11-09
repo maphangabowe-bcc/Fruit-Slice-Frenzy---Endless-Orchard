@@ -152,17 +152,18 @@ export default function App() {
     };
   }, []);
 
-  // Save on state change (Local Storage + YouTube Playables Cloud Save)
+  const triggerCloudSave = useCallback((currentStats: PlayerStats) => {
+    if (hasLoadedCloudRef.current) {
+      playables.saveData(JSON.stringify(currentStats));
+    }
+  }, []);
+
+  // Save to Local Storage on every change (local robust recovery)
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(stats));
     } catch {
       // ignore
-    }
-
-    // Only save to cloud after loadData() has completed to prevent wiping user data
-    if (hasLoadedCloudRef.current) {
-      playables.saveData(JSON.stringify(stats));
     }
   }, [stats]);
 
@@ -252,6 +253,7 @@ export default function App() {
         }));
         setGameState('GAME_OVER');
         playables.sendScore(score);
+        triggerCloudSave(statsRef.current);
       } else if (mode === 'CAMPAIGN') {
         // Evaluate if objectives met
         const allCompleted = activeObjectives.every((obj) => obj.current >= obj.target);
@@ -260,6 +262,7 @@ export default function App() {
         } else {
           setGameState('GAME_OVER');
           playables.sendScore(score);
+          triggerCloudSave(statsRef.current);
         }
       }
       return;
@@ -312,7 +315,8 @@ export default function App() {
 
     setGameState('LEVEL_CLEAR');
     playables.sendScore(score);
-  }, [currentLevelConfig, currentLevelNumber, score]);
+    triggerCloudSave(statsRef.current);
+  }, [currentLevelConfig, currentLevelNumber, score, triggerCloudSave]);
 
   // Slice Fruit Handler
   const handleFruitSliced = useCallback(
@@ -410,6 +414,7 @@ export default function App() {
         }
         setGameState('GAME_OVER');
         playables.sendScore(score);
+        triggerCloudSave(statsRef.current);
         return 0;
       }
       return next;
@@ -435,6 +440,7 @@ export default function App() {
             }));
             setGameState('GAME_OVER');
             playables.sendScore(score);
+            triggerCloudSave(statsRef.current);
             return 0;
           }
           return next;
@@ -452,6 +458,8 @@ export default function App() {
       unlockedBlades: [...prev.unlockedBlades, id],
       selectedBlade: id,
     }));
+    // Purchases are logical milestones
+    setTimeout(() => triggerCloudSave(statsRef.current), 0);
   };
 
   const handleBuyArena = (id: string, price: number) => {
@@ -461,6 +469,7 @@ export default function App() {
       unlockedArenas: [...prev.unlockedArenas, id],
       selectedArena: id,
     }));
+    setTimeout(() => triggerCloudSave(statsRef.current), 0);
   };
 
   const returnToTitle = () => {

@@ -299,7 +299,14 @@ class PlayablesManager {
 
     // Limit check: 3 MiB is 3,145,728 bytes. We use 2.5 MiB as a safe buffer.
     const MAX_SIZE = 2.5 * 1024 * 1024;
-    const dataSize = data.length; // Approximate size in bytes for typical JSON strings
+    
+    // Accurate byte size calculation for the string
+    let dataSize = 0;
+    try {
+      dataSize = new Blob([data]).size;
+    } catch (e) {
+      dataSize = data.length; // Fallback
+    }
     
     if (dataSize > MAX_SIZE) {
       console.error(`[Playables SDK] saveData aborted: Payload too large (${(dataSize / 1024).toFixed(2)} KB)`);
