@@ -244,6 +244,11 @@ export const FruitCanvas: React.FC<FruitCanvasProps> = ({
     // 2. High-speed spray particles
     const particleCount = fruit.id === 'dragonfruit' ? 36 : 18;
     for (let i = 0; i < particleCount; i++) {
+      // Hard limit on particles to save memory
+      if (particlesRef.current.length > 300) {
+        particlesRef.current.shift();
+      }
+      
       const angle = Math.random() * Math.PI * 2;
       const speed = 2 + Math.random() * 7;
       particlesRef.current.push({
@@ -262,6 +267,11 @@ export const FruitCanvas: React.FC<FruitCanvasProps> = ({
     // 3. Fruit halves flying in opposite directions perpendicular to cut
     const perpAngle = angleCut + Math.PI / 2;
     const splitSpeed = 3.5;
+
+    // Hard limit on halves to save memory
+    if (halvesRef.current.length > 40) {
+      halvesRef.current.splice(0, 2);
+    }
 
     // Half 1
     halvesRef.current.push({
@@ -382,12 +392,22 @@ export const FruitCanvas: React.FC<FruitCanvasProps> = ({
       });
     }
 
+    // Cap floating texts
+    if (floatingTextsRef.current.length > 15) {
+      floatingTextsRef.current.shift();
+    }
+
     onFruitSliced(fruit, currentSwipeFruitsRef.current.length);
   };
 
   // Evaluate blade collision against airborne fruits
   const checkBladeCollisions = (p1: BladePoint, p2: BladePoint) => {
     const cutAngle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+
+    // Limit active fruits to prevent memory explosion if spawn rates are high
+    if (fruitsRef.current.length > 50) {
+      fruitsRef.current.splice(0, 10);
+    }
 
     fruitsRef.current.forEach((item) => {
       if (item.isSliced) return;
@@ -485,11 +505,45 @@ export const FruitCanvas: React.FC<FruitCanvasProps> = ({
     currentSwipeFruitsRef.current = [];
   };
 
+  // Aggressive memory cleanup for all game entities
+  const clearAllEntities = useCallback(() => {
+    fruitsRef.current = [];
+    halvesRef.current = [];
+    splattersRef.current = [];
+    particlesRef.current = [];
+    floatingTextsRef.current = [];
+    bladePointsRef.current = [];
+    currentSwipeFruitsRef.current = [];
+  }, []);
+
+  // Cleanup on unmount or when game stops playing
+  useEffect(() => {
+    if (!isPlaying && !isPaused) {
+      clearAllEntities();
+    }
+  }, [isPlaying, isPaused, clearAllEntities]);
+
   // Main 60fps RequestAnimationFrame Loop
   useEffect(() => {
     let animId: number;
+    let frameCount = 0;
 
     const gameLoop = (timestamp: number) => {
+      frameCount++;
+      
+      // Memory Monitoring (every 120 frames ~2 seconds)
+      if (frameCount % 120 === 0 && (window.performance as any)?.memory) {
+        const memory = (window.performance as any).memory;
+        const usedHeapMiB = Math.round(memory.usedJSHeapSize / (1024 * 1024));
+        const totalHeapMiB = Math.round(memory.totalJSHeapSize / (1024 * 1024));
+        // Log if approaching dangerous levels (though 512 MiB is plenty for this game)
+        if (usedHeapMiB > 300) {
+          console.warn(`[Memory] Approaching limit: ${usedHeapMiB} MiB used / 512 MiB target`);
+        } else if (frameCount % 600 === 0) {
+          console.log(`[Memory] Status: ${usedHeapMiB} MiB / ${totalHeapMiB} MiB`);
+        }
+      }
+
       const canvas = canvasRef.current;
       if (!canvas) {
         animId = requestAnimationFrame(gameLoop);

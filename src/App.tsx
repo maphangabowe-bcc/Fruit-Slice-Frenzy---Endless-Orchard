@@ -152,22 +152,34 @@ export default function App() {
     };
   }, []);
 
+  const lastSavedPayloadRef = useRef<string>('');
+
   const triggerCloudSave = useCallback((currentStats: PlayerStats) => {
     if (hasLoadedCloudRef.current) {
-      // Create a clean copy for cloud saving
+      // YouTube Playables Compliance: Ensure payload is compact and < 3 MiB.
+      // We prune zero values and limit history to essential progression.
       const prunedStats = {
         ...currentStats,
-        // Ensure we don't save excessive metadata if any was added by accident
+        // Limit star tracking to most recent 2000 levels (well over expected progression)
+        // to prevent theoretical infinite growth if the game is played for years.
         levelStars: Object.fromEntries(
-          Object.entries(currentStats.levelStars).filter(([_, stars]) => stars > 0)
+          Object.entries(currentStats.levelStars)
+            .filter(([_, stars]) => stars > 0)
+            .slice(-2000) 
         ),
         fruitsSlicedCount: Object.fromEntries(
-          Object.entries(currentStats.fruitsSlicedCount).filter(([_, count]) => count > 0)
+          Object.entries(currentStats.fruitsSlicedCount)
+            .filter(([_, count]) => count > 0)
         )
       };
       
       const payload = JSON.stringify(prunedStats);
-      playables.saveData(payload);
+      
+      // Optimization: avoid redundant cloud saves if data hasn't changed
+      if (payload !== lastSavedPayloadRef.current) {
+        lastSavedPayloadRef.current = payload;
+        playables.saveData(payload);
+      }
     }
   }, []);
 

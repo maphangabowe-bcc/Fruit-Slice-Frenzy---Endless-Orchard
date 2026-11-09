@@ -297,35 +297,35 @@ class PlayablesManager {
       return;
     }
 
-    // Limit check: 3 MiB is 3,145,728 bytes. 
-    // We use a 2.5 MiB (2,621,440 bytes) hard cap to ensure platform compliance.
-    const MAX_SIZE_BYTES = 2.5 * 1024 * 1024;
-    const WARN_SIZE_BYTES = 2.0 * 1024 * 1024;
+    // YouTube Playables Limit: 3 MiB (3,145,728 bytes).
+    // We enforce a 2.8 MiB safety threshold to account for platform overhead.
+    const MAX_LIMIT_BYTES = 3 * 1024 * 1024;
+    const SAFETY_CAP_BYTES = 2.8 * 1024 * 1024;
+    const WARN_THRESHOLD_BYTES = 2.0 * 1024 * 1024;
     
     let dataSize = 0;
     try {
-      dataSize = new Blob([data]).size;
+      // Use TextEncoder for precise UTF-8 byte count
+      dataSize = new TextEncoder().encode(data).length;
     } catch (e) {
-      dataSize = data.length; // Fallback to length (approx bytes for UTF-16/ASCII)
+      dataSize = data.length; // Fallback
     }
     
-    if (dataSize > MAX_SIZE_BYTES) {
-      console.error(`[Playables SDK] saveData BLOCKED: Payload exceeds 2.5 MiB safety cap (${(dataSize / 1024).toFixed(2)} KB).`);
+    if (dataSize > SAFETY_CAP_BYTES) {
+      console.error(`[Playables Compliance] BLOCK: Save data (${(dataSize / 1024).toFixed(2)} KB) exceeds safety cap.`);
       return;
     }
 
-    if (dataSize > WARN_SIZE_BYTES) {
-      console.warn(`[Playables SDK] saveData WARNING: Save data is approaching the limit (${(dataSize / 1024).toFixed(2)} KB).`);
+    if (dataSize > WARN_THRESHOLD_BYTES) {
+      console.warn(`[Playables Compliance] WARNING: Save data size is elevated (${(dataSize / 1024).toFixed(2)} KB).`);
     }
 
     if (window.ytgame?.game?.saveData) {
       try {
         await window.ytgame.game.saveData(data);
-        // Optimization: only log significant sizes or every Nth save in production, 
-        // but keeping it here for certification visibility.
-        console.log(`[Playables SDK] Cloud saveData SUCCESS. Payload: ${(dataSize / 1024).toFixed(2)} KB / 3072.00 KB`);
+        console.log(`[Playables Compliance] SAVE SUCCESS: ${(dataSize / 1024).toFixed(2)} KB / 3072.00 KB (Requirement: < 3 MiB)`);
       } catch (err) {
-        console.error('[Playables SDK] Cloud saveData FAILED:', err);
+        console.error('[Playables SDK] Cloud saveData failed:', err);
       }
     }
   }
