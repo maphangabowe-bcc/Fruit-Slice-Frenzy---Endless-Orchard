@@ -1,0 +1,6 @@
+{
+  "name": "Fruit Slice Frenzy - Endless Orchard",
+  "description": "An action-packed, juicy fruit slicing arcade with endless procedural levels, blade upgrades, combo streaks, and juicy splatters.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
