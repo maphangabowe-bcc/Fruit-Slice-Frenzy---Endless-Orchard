@@ -139,6 +139,7 @@ export default function App() {
         hasLoadedCloudRef.current = true;
         // LOADING: gameReady() notifies YouTube that loading is complete and game is interactive
         playables.gameReady();
+        playables.sendScore(0);
       }
     };
 
@@ -250,6 +251,7 @@ export default function App() {
           },
         }));
         setGameState('GAME_OVER');
+        playables.sendScore(score);
       } else if (mode === 'CAMPAIGN') {
         // Evaluate if objectives met
         const allCompleted = activeObjectives.every((obj) => obj.current >= obj.target);
@@ -257,6 +259,7 @@ export default function App() {
           handleVictory();
         } else {
           setGameState('GAME_OVER');
+          playables.sendScore(score);
         }
       }
       return;
@@ -406,6 +409,7 @@ export default function App() {
           }));
         }
         setGameState('GAME_OVER');
+        playables.sendScore(score);
         return 0;
       }
       return next;
@@ -430,6 +434,7 @@ export default function App() {
               },
             }));
             setGameState('GAME_OVER');
+            playables.sendScore(score);
             return 0;
           }
           return next;

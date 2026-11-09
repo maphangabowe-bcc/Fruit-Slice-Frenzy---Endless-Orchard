@@ -289,6 +289,7 @@ class PlayablesManager {
   /**
    * Save serialized save data to YouTube Playables Cloud Storage.
    * Requirement: must only be called after loadData() completes.
+   * Requirement: data must be less than 3 MiB.
    */
   public async saveData(data: string): Promise<void> {
     if (!this.hasCloudDataLoaded) {
@@ -296,10 +297,19 @@ class PlayablesManager {
       return;
     }
 
+    // Limit check: 3 MiB is 3,145,728 bytes. We use 2.5 MiB as a safe buffer.
+    const MAX_SIZE = 2.5 * 1024 * 1024;
+    const dataSize = data.length; // Approximate size in bytes for typical JSON strings
+    
+    if (dataSize > MAX_SIZE) {
+      console.error(`[Playables SDK] saveData aborted: Payload too large (${(dataSize / 1024).toFixed(2)} KB)`);
+      return;
+    }
+
     if (window.ytgame?.game?.saveData) {
       try {
         await window.ytgame.game.saveData(data);
-        console.log('[Playables SDK] Cloud saveData succeeded');
+        console.log(`[Playables SDK] Cloud saveData succeeded. Size: ${(dataSize / 1024).toFixed(2)} KB`);
       } catch (err) {
         console.error('[Playables SDK] Cloud saveData failed:', err);
       }
