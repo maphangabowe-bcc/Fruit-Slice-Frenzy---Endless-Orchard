@@ -297,28 +297,35 @@ class PlayablesManager {
       return;
     }
 
-    // Limit check: 3 MiB is 3,145,728 bytes. We use 2.5 MiB as a safe buffer.
-    const MAX_SIZE = 2.5 * 1024 * 1024;
+    // Limit check: 3 MiB is 3,145,728 bytes. 
+    // We use a 2.5 MiB (2,621,440 bytes) hard cap to ensure platform compliance.
+    const MAX_SIZE_BYTES = 2.5 * 1024 * 1024;
+    const WARN_SIZE_BYTES = 2.0 * 1024 * 1024;
     
-    // Accurate byte size calculation for the string
     let dataSize = 0;
     try {
       dataSize = new Blob([data]).size;
     } catch (e) {
-      dataSize = data.length; // Fallback
+      dataSize = data.length; // Fallback to length (approx bytes for UTF-16/ASCII)
     }
     
-    if (dataSize > MAX_SIZE) {
-      console.error(`[Playables SDK] saveData aborted: Payload too large (${(dataSize / 1024).toFixed(2)} KB)`);
+    if (dataSize > MAX_SIZE_BYTES) {
+      console.error(`[Playables SDK] saveData BLOCKED: Payload exceeds 2.5 MiB safety cap (${(dataSize / 1024).toFixed(2)} KB).`);
       return;
+    }
+
+    if (dataSize > WARN_SIZE_BYTES) {
+      console.warn(`[Playables SDK] saveData WARNING: Save data is approaching the limit (${(dataSize / 1024).toFixed(2)} KB).`);
     }
 
     if (window.ytgame?.game?.saveData) {
       try {
         await window.ytgame.game.saveData(data);
-        console.log(`[Playables SDK] Cloud saveData succeeded. Size: ${(dataSize / 1024).toFixed(2)} KB`);
+        // Optimization: only log significant sizes or every Nth save in production, 
+        // but keeping it here for certification visibility.
+        console.log(`[Playables SDK] Cloud saveData SUCCESS. Payload: ${(dataSize / 1024).toFixed(2)} KB / 3072.00 KB`);
       } catch (err) {
-        console.error('[Playables SDK] Cloud saveData failed:', err);
+        console.error('[Playables SDK] Cloud saveData FAILED:', err);
       }
     }
   }

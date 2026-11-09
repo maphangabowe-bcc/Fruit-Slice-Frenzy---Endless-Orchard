@@ -154,7 +154,20 @@ export default function App() {
 
   const triggerCloudSave = useCallback((currentStats: PlayerStats) => {
     if (hasLoadedCloudRef.current) {
-      playables.saveData(JSON.stringify(currentStats));
+      // Create a clean copy for cloud saving
+      const prunedStats = {
+        ...currentStats,
+        // Ensure we don't save excessive metadata if any was added by accident
+        levelStars: Object.fromEntries(
+          Object.entries(currentStats.levelStars).filter(([_, stars]) => stars > 0)
+        ),
+        fruitsSlicedCount: Object.fromEntries(
+          Object.entries(currentStats.fruitsSlicedCount).filter(([_, count]) => count > 0)
+        )
+      };
+      
+      const payload = JSON.stringify(prunedStats);
+      playables.saveData(payload);
     }
   }, []);
 
