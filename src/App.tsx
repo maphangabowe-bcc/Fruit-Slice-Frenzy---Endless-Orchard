@@ -68,6 +68,27 @@ export default function App() {
   const gameStateRef = useRef<GameState>(gameState);
   gameStateRef.current = gameState;
 
+  // Cloud Save Helper: ensures payload is pruned, valid JSON, and strictly < 3 MiB
+  const triggerCloudSave = useCallback((currentStats: PlayerStats) => {
+    if (hasLoadedCloudRef.current) {
+      const prunedStats = {
+        ...currentStats,
+        levelStars: Object.fromEntries(
+          Object.entries(currentStats.levelStars)
+            .filter(([_, stars]) => stars > 0)
+            .slice(-2000)
+        ),
+        fruitsSlicedCount: Object.fromEntries(
+          Object.entries(currentStats.fruitsSlicedCount)
+            .filter(([_, count]) => count > 0)
+        ),
+      };
+
+      const payload = JSON.stringify(prunedStats);
+      playables.saveData(payload);
+    }
+  }, []);
+
   // 1. YouTube Playables SDK Lifecycle & System Listeners
   useEffect(() => {
     // LOADING: firstFrameReady() notifies YouTube that rendering has started
@@ -93,7 +114,7 @@ export default function App() {
         setGameState('PAUSED');
       }
       // Save data immediately upon pause as required by YouTube Playables certification
-      playables.saveData(JSON.stringify(statsRef.current));
+      triggerCloudSave(statsRef.current);
     });
 
     // RESUME: ytgame.system.onResume() -> restore audio context if enabled
@@ -140,6 +161,8 @@ export default function App() {
         // LOADING: gameReady() notifies YouTube that loading is complete and game is interactive
         playables.gameReady();
         playables.sendScore(0);
+        // Save initial synced state immediately so YouTube test suite registers valid Cloud Save (< 3 MiB)
+        triggerCloudSave(statsRef.current);
       }
     };
 
@@ -150,47 +173,33 @@ export default function App() {
       unsubscribePause();
       unsubscribeResume();
     };
-  }, []);
+  }, [triggerCloudSave]);
 
-  const lastSavedPayloadRef = useRef<string>('');
-
-  const triggerCloudSave = useCallback((currentStats: PlayerStats) => {
-    if (hasLoadedCloudRef.current) {
-      // YouTube Playables Compliance: Ensure payload is compact and < 3 MiB.
-      // We prune zero values and limit history to essential progression.
-      const prunedStats = {
-        ...currentStats,
-        // Limit star tracking to most recent 2000 levels (well over expected progression)
-        // to prevent theoretical infinite growth if the game is played for years.
-        levelStars: Object.fromEntries(
-          Object.entries(currentStats.levelStars)
-            .filter(([_, stars]) => stars > 0)
-            .slice(-2000) 
-        ),
-        fruitsSlicedCount: Object.fromEntries(
-          Object.entries(currentStats.fruitsSlicedCount)
-            .filter(([_, count]) => count > 0)
-        )
-      };
-      
-      const payload = JSON.stringify(prunedStats);
-      
-      // Optimization: avoid redundant cloud saves if data hasn't changed
-      if (payload !== lastSavedPayloadRef.current) {
-        lastSavedPayloadRef.current = payload;
-        playables.saveData(payload);
-      }
-    }
-  }, []);
-
-  // Save to Local Storage on every change (local robust recovery)
+  // 2. Save on state change (Local Storage + Debounced YouTube Playables Cloud Save)
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(stats));
     } catch {
       // ignore
     }
-  }, [stats]);
+
+    if (hasLoadedCloudRef.current) {
+      const timer = setTimeout(() => {
+        triggerCloudSave(stats);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [stats, triggerCloudSave]);
+
+  // 3. Periodic Cloud Save Heartbeat (prevents "saveData called more than 7 minutes ago" in long sessions)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (hasLoadedCloudRef.current) {
+        triggerCloudSave(statsRef.current);
+      }
+    }, 60000); // Heartbeat save every 60 seconds
+    return () => clearInterval(interval);
+  }, [triggerCloudSave]);
 
   const handleToggleSound = () => {
     setSoundEnabled((prev) => {
